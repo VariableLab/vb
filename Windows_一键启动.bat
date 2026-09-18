@@ -1,0 +1,6 @@
+@echo off
+echo 正在检查并安装必要的依赖，请稍等...
+pip install -r requirements.txt -q
+echo 启动 AI 视频生成神器...
+python run.py
+pause
