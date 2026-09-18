@@ -43,12 +43,12 @@ jobs:
     - name: Build EXE with PyInstaller (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        pyinstaller --onefile --windowed --icon=app_icon.ico --name="AI视频生成神器" --add-data "web_app.py;." --copy-metadata streamlit --collect-data streamlit run.py
+        pyinstaller --onefile --windowed --icon=app_icon.ico --name="AI视频生成神器" --add-data "web_app.py;." --hidden-import=streamlit.runtime.scriptrunner.magic_funcs --copy-metadata streamlit --collect-data streamlit run.py
 
     - name: Build APP with PyInstaller (Mac)
       if: matrix.os == 'macos-latest'
       run: |
-        pyinstaller --onefile --windowed --icon=app_icon.icns --name="AI视频生成神器" --add-data "web_app.py:." --copy-metadata streamlit --collect-data streamlit run.py
+        pyinstaller --onefile --windowed --icon=app_icon.icns --name="AI视频生成神器" --add-data "web_app.py:." --hidden-import=streamlit.runtime.scriptrunner.magic_funcs --copy-metadata streamlit --collect-data streamlit run.py
 
     - name: Upload Windows Artifact
       if: matrix.os == 'windows-latest'
