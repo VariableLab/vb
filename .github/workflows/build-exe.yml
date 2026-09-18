@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build Desktop Apps
 
 on:
   push:
@@ -7,7 +7,10 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v4
@@ -23,13 +26,32 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller streamlit
 
-    - name: Build EXE with PyInstaller
+    - name: Build EXE with PyInstaller (Windows)
+      if: matrix.os == 'windows-latest'
       run: |
-        # 使用 PyInstaller 打包，并且把 web_app.py 作为数据文件包含进去
         pyinstaller --onefile --windowed --name="AI视频生成神器" --add-data "web_app.py;." --copy-metadata streamlit --collect-data streamlit run.py
 
-    - name: Upload Artifact
+    - name: Build APP with PyInstaller (Mac)
+      if: matrix.os == 'macos-latest'
+      run: |
+        pyinstaller --onefile --windowed --name="AI视频生成神器" --add-data "web_app.py:." --copy-metadata streamlit --collect-data streamlit run.py
+
+    - name: Upload Windows Artifact
+      if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
         name: Windows-App
         path: dist/AI视频生成神器.exe
+
+    - name: Zip Mac App Bundle
+      if: matrix.os == 'macos-latest'
+      run: |
+        cd dist
+        zip -r "AI视频生成神器-Mac.zip" "AI视频生成神器.app"
+
+    - name: Upload Mac Artifact
+      if: matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mac-App
+        path: dist/AI视频生成神器-Mac.zip
