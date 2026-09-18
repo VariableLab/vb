@@ -24,17 +24,31 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pyinstaller streamlit
+        pip install pyinstaller streamlit pillow
+
+    - name: Convert Icon
+      shell: python
+      run: |
+        from PIL import Image
+        import sys
+        try:
+            img = Image.open('app_icon.jpg')
+            # 缩放成正方形并保存为 ico 和 icns
+            img = img.resize((256, 256))
+            img.save('app_icon.ico', format='ICO', sizes=[(256, 256)])
+            img.save('app_icon.icns', format='ICNS')
+        except Exception as e:
+            print("Icon conversion failed:", e)
 
     - name: Build EXE with PyInstaller (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        pyinstaller --onefile --windowed --name="AI视频生成神器" --add-data "web_app.py;." --copy-metadata streamlit --collect-data streamlit run.py
+        pyinstaller --onefile --windowed --icon=app_icon.ico --name="AI视频生成神器" --add-data "web_app.py;." --copy-metadata streamlit --collect-data streamlit run.py
 
     - name: Build APP with PyInstaller (Mac)
       if: matrix.os == 'macos-latest'
       run: |
-        pyinstaller --onefile --windowed --name="AI视频生成神器" --add-data "web_app.py:." --copy-metadata streamlit --collect-data streamlit run.py
+        pyinstaller --onefile --windowed --icon=app_icon.icns --name="AI视频生成神器" --add-data "web_app.py:." --copy-metadata streamlit --collect-data streamlit run.py
 
     - name: Upload Windows Artifact
       if: matrix.os == 'windows-latest'
