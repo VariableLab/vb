@@ -135,7 +135,7 @@ st.set_page_config(page_title="AI 自动化视频 SaaS 平台", layout="wide")
 # SaaS 侧边栏配置
 st.sidebar.title("⚙️ SaaS 配置面板")
 st.sidebar.markdown("由于服务运行在 SaaS 模式下，请在此输入您的私有 API Key：")
-user_api_key = st.sidebar.text_input("Agnes AI API Key", type="password", placeholder="sk-...")
+user_api_key = st.sidebar.text_input("专属 API Key", type="password", placeholder="sk-...")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎨 视觉风格选择")

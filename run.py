@@ -1,6 +1,8 @@
 import os
 import sys
 import streamlit.web.cli as stcli
+import requests
+import openai
 
 def resolve_path(path):
     """处理 PyInstaller 打包后的临时路径问题"""
