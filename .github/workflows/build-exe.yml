@@ -2,70 +2,135 @@ name: Build Desktop Apps
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [main, master]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  windows:
+    name: Build and verify Windows app
+    runs-on: windows-latest
+    timeout-minutes: 15
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.9'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller streamlit pillow
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade -r requirements.txt
+          python -m pip install --upgrade pyinstaller pillow
 
-    - name: Convert Icon
-      shell: python
-      run: |
-        from PIL import Image
-        import sys
-        try:
-            img = Image.open('app_icon.jpg')
-            # 缩放成正方形并保存为 ico 和 icns
-            img = img.resize((256, 256))
-            img.save('app_icon.ico', format='ICO', sizes=[(256, 256)])
-            img.save('app_icon.icns', format='ICNS')
-        except Exception as e:
-            print("Icon conversion failed:", e)
+      - name: Create Windows icon
+        shell: python
+        run: |
+          from PIL import Image
+          image = Image.open("app_icon.jpg").convert("RGBA")
+          image.thumbnail((256, 256))
+          image.save("app_icon.ico", format="ICO", sizes=[(16, 16), (32, 32), (48, 48), (256, 256)])
 
-    - name: Build EXE with PyInstaller (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        pyinstaller --onefile --windowed --icon=app_icon.ico --name="AI视频生成神器" --add-data "web_app.py;." --hidden-import=streamlit.runtime.scriptrunner.magic_funcs --copy-metadata streamlit --collect-data streamlit run.py
+      - name: Package Windows app
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onedir --windowed             --name "AI视频生成神器"             --icon "app_icon.ico"             --add-data "web_app.py;."             --collect-all streamlit             --collect-all openai             --collect-all requests             --copy-metadata streamlit             --copy-metadata openai             --hidden-import streamlit.web.cli             --hidden-import streamlit.web.bootstrap             --hidden-import streamlit.runtime.scriptrunner.magic_funcs             run.py
 
-    - name: Build APP with PyInstaller (Mac)
-      if: matrix.os == 'macos-latest'
-      run: |
-        pyinstaller --onefile --windowed --icon=app_icon.icns --name="AI视频生成神器" --add-data "web_app.py:." --hidden-import=streamlit.runtime.scriptrunner.magic_funcs --copy-metadata streamlit --collect-data streamlit run.py
+      - name: Smoke-test packaged app
+        shell: pwsh
+        run: |
+          $app = Join-Path $PWD "dist\AI视频生成神器\AI视频生成神器.exe"
+          if (-not (Test-Path $app)) { throw "Packaged EXE was not created: $app" }
 
-    - name: Upload Windows Artifact
-      if: matrix.os == 'windows-latest'
-      uses: actions/upload-artifact@v4
-      with:
-        name: Windows-App
-        path: dist/AI视频生成神器.exe
+          $process = Start-Process -FilePath $app -PassThru
+          try {
+            $healthy = $false
+            for ($attempt = 1; $attempt -le 40; $attempt++) {
+              Start-Sleep -Seconds 1
+              try {
+                $response = Invoke-WebRequest -Uri "http://127.0.0.1:8501/_stcore/health" -UseBasicParsing -TimeoutSec 2
+                if ($response.StatusCode -eq 200) {
+                  $healthy = $true
+                  break
+                }
+              } catch {
+                # Streamlit can take several seconds to unpack and start.
+              }
+            }
+            if (-not $healthy) { throw "The packaged app did not start its Streamlit server on port 8501." }
+          } finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+          }
 
-    - name: Zip Mac App Bundle
-      if: matrix.os == 'macos-latest'
-      run: |
-        cd dist
-        zip -r "AI视频生成神器-Mac.zip" "AI视频生成神器.app"
+      - name: Create distributable archive
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "dist\AI视频生成神器" -DestinationPath "dist\AI视频生成神器-Windows.zip" -Force
 
-    - name: Upload Mac Artifact
-      if: matrix.os == 'macos-latest'
-      uses: actions/upload-artifact@v4
-      with:
-        name: Mac-App
-        path: dist/AI视频生成神器-Mac.zip
+      - name: Upload Windows app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-App
+          path: dist/AI视频生成神器-Windows.zip
+          if-no-files-found: error
+
+  macos:
+    name: Build macOS app
+    runs-on: macos-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade -r requirements.txt
+          python -m pip install --upgrade pyinstaller pillow
+
+      - name: Create macOS icon
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          image = Image.open("app_icon.jpg").convert("RGBA")
+          image.thumbnail((1024, 1024))
+          image.save("app_icon.icns", format="ICNS")
+          PY
+
+      - name: Package macOS app
+        run: |
+          pyinstaller --noconfirm --clean --onedir --windowed \
+            --name "AI视频生成神器" \
+            --icon "app_icon.icns" \
+            --add-data "web_app.py:." \
+            --collect-all streamlit \
+            --collect-all openai \
+            --collect-all requests \
+            --copy-metadata streamlit \
+            --copy-metadata openai \
+            --hidden-import streamlit.web.cli \
+            --hidden-import streamlit.web.bootstrap \
+            --hidden-import streamlit.runtime.scriptrunner.magic_funcs \
+            run.py
+
+      - name: Create distributable archive
+        run: |
+          cd dist
+          zip -r "AI视频生成神器-Mac.zip" "AI视频生成神器.app"
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mac-App
+          path: dist/AI视频生成神器-Mac.zip
+          if-no-files-found: error
