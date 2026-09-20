@@ -19,7 +19,10 @@ if __name__ == "__main__":
         "run",
         script_path,
         "--global.developmentMode=false",
-        "--server.headless=false", 
-        "--theme.base=light" 
+        "--server.headless=false",
+        "--server.address=127.0.0.1",
+        "--server.port=8501",
+        "--browser.gatherUsageStats=false",
+        "--theme.base=light"
     ]
     sys.exit(stcli.main())
