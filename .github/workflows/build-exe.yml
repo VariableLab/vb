@@ -39,8 +39,8 @@ jobs:
       - name: Package Windows app
         shell: pwsh
         run: |
-          # Keep the console visible until the smoke test is clean: startup errors
-          # will be captured in the Actions log instead of silently exiting.
+          # Use a directory bundle: Streamlit's dynamic modules and web assets
+          # are substantially more reliable than in a one-file executable.
           $pyinstallerArgs = @(
             "--noconfirm",
             "--clean",
