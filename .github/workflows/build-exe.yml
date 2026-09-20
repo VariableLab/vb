@@ -39,7 +39,27 @@ jobs:
       - name: Package Windows app
         shell: pwsh
         run: |
-          pyinstaller --noconfirm --clean --onedir --windowed             --name "AI视频生成神器"             --icon "app_icon.ico"             --add-data "web_app.py;."             --collect-all streamlit             --collect-all openai             --collect-all requests             --copy-metadata streamlit             --copy-metadata openai             --hidden-import streamlit.web.cli             --hidden-import streamlit.web.bootstrap             --hidden-import streamlit.runtime.scriptrunner.magic_funcs             run.py
+          # Keep the console visible until the smoke test is clean: startup errors
+          # will be captured in the Actions log instead of silently exiting.
+          $pyinstallerArgs = @(
+            "--noconfirm",
+            "--clean",
+            "--onedir",
+            "--console",
+            "--name", "AI视频生成神器",
+            "--icon", "app_icon.ico",
+            "--add-data", "web_app.py;.",
+            "--collect-all", "streamlit",
+            "--collect-all", "openai",
+            "--collect-all", "requests",
+            "--copy-metadata", "streamlit",
+            "--copy-metadata", "openai",
+            "--hidden-import", "streamlit.web.cli",
+            "--hidden-import", "streamlit.web.bootstrap",
+            "--hidden-import", "streamlit.runtime.scriptrunner.magic_funcs",
+            "run.py"
+          )
+          pyinstaller @pyinstallerArgs
 
       - name: Smoke-test packaged app
         shell: pwsh
@@ -47,7 +67,9 @@ jobs:
           $app = Join-Path $PWD "dist\AI视频生成神器\AI视频生成神器.exe"
           if (-not (Test-Path $app)) { throw "Packaged EXE was not created: $app" }
 
-          $process = Start-Process -FilePath $app -PassThru
+          $stdout = Join-Path $PWD "packaged-app.stdout.log"
+          $stderr = Join-Path $PWD "packaged-app.stderr.log"
+          $process = Start-Process -FilePath $app -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
             $healthy = $false
             for ($attempt = 1; $attempt -le 40; $attempt++) {
@@ -62,10 +84,26 @@ jobs:
                 # Streamlit can take several seconds to unpack and start.
               }
             }
-            if (-not $healthy) { throw "The packaged app did not start its Streamlit server on port 8501." }
+            if (-not $healthy) {
+              Write-Host "--- packaged app stdout ---"
+              if (Test-Path $stdout) { Get-Content $stdout }
+              Write-Host "--- packaged app stderr ---"
+              if (Test-Path $stderr) { Get-Content $stderr }
+              throw "The packaged app did not start its Streamlit server on port 8501. See the captured logs above."
+            }
           } finally {
-            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
           }
+
+      - name: Upload startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-Startup-Logs
+          path: |
+            packaged-app.stdout.log
+            packaged-app.stderr.log
+          if-no-files-found: warn
 
       - name: Create distributable archive
         shell: pwsh
