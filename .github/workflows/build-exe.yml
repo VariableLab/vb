@@ -45,7 +45,7 @@ jobs:
             "--noconfirm",
             "--clean",
             "--onedir",
-            "--console",
+            "--windowed",
             "--name", "AI视频生成神器",
             "--icon", "app_icon.ico",
             "--add-data", "web_app.py;.",
