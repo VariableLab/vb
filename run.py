@@ -1,5 +1,6 @@
 import os
 import socket
+import stitcher
 import sys
 import threading
 import time

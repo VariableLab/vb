@@ -495,3 +495,54 @@ if st.session_state.scenes:
                             st.json(st.session_state[vid_key])
                     else:
                         st.json(task_data)
+
+    # --- 最终视频合成 ---
+    st.markdown("---")
+    st.header("3. 最终视频合成 (一键拼接)")
+    st.markdown("将上述所有生成的视频片段，加上转场效果，无缝拼接成一段完整的长视频。")
+    
+    col_s1, col_s2 = st.columns(2)
+    transition_type = col_s1.selectbox("转场效果", ["交叉淡化 (Crossfade - 推荐)", "硬切 (Cut - 极速)"])
+    if st.button("🌟 一键拼接为长视频", type="primary"):
+        import tempfile
+        from stitcher import stitch_videos_crossfade, stitch_videos_concat
+        
+        valid_clips = []
+        for i in range(len(st.session_state.scenes)):
+            vid_key = f"vid_data_{i}"
+            if vid_key in st.session_state:
+                status = st.session_state[vid_key].get("status")
+                url = st.session_state[vid_key].get("video_url") or st.session_state[vid_key].get("url")
+                if status == "completed" and url:
+                    valid_clips.append(url)
+                    
+        if len(valid_clips) < 2:
+            st.warning("⚠️ 至少需要 2 个已生成的视频片段才能进行拼接！请先生成每一幕的视频。")
+        else:
+            with st.spinner(f"正在下载 {len(valid_clips)} 个视频片段并处理转场 (依赖 FFmpeg)..."):
+                try:
+                    temp_dir = tempfile.mkdtemp()
+                    local_files = []
+                    for idx, url in enumerate(valid_clips):
+                        r = requests.get(url, timeout=60)
+                        path = os.path.join(temp_dir, f"clip_{idx}.mp4")
+                        with open(path, "wb") as f:
+                            f.write(r.content)
+                        local_files.append(path)
+                    
+                    output_path = os.path.join(temp_dir, "final_stitched_video.mp4")
+                    
+                    if "Crossfade" in transition_type:
+                        stitch_videos_crossfade(local_files, output_path, transition_duration=0.5)
+                    else:
+                        stitch_videos_concat(local_files, output_path)
+                        
+                    st.success("🎉 合成完毕！您可以直接预览或下载。")
+                    st.video(output_path)
+                    
+                    with open(output_path, "rb") as f:
+                        video_bytes = f.read()
+                    st.download_button(label="💾 下载最终成片", data=video_bytes, file_name="final_video.mp4", mime="video/mp4")
+                    
+                except Exception as e:
+                    st.error(f"合成失败，请检查是否已正确安装 FFmpeg。详细报错：{e}")
